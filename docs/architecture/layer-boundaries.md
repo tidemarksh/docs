@@ -55,16 +55,16 @@ flowchart TB
   ABI --> RISCV
 ```
 
-## Practical Rules
+## Ownership Principles
 
-Kernel changes should be justified by RISC-V, ELF, memory, filesystem, process,
+Kernel ownership is justified by RISC-V, ELF, memory, filesystem, process,
 signal, socket, thread, or Linux userland compatibility behavior.
 
-Runtime changes should be justified by worker orchestration, state
-synchronization, process lifecycle, host bridge, filesystem snapshot, or
-network bridge behavior.
+Runtime ownership is justified by worker orchestration, state synchronization,
+process lifecycle, host bridge, filesystem snapshot, or network bridge
+behavior.
 
-SDK changes should be justified by application ergonomics, provider interfaces,
+SDK ownership is justified by application ergonomics, provider interfaces,
 network policy integration, terminal integration, or host tooling.
 
 Application and provider code can know package names, registry names, mirror

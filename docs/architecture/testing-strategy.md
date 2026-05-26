@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Tidemark tests should prove the layer that owns the behavior. A workload test
-is valuable, but it should not replace the lower-level gate that explains why
-the workload is expected to pass.
+Tidemark tests are organized around the layer that owns the behavior. A
+workload test is valuable, but it does not replace the lower-level gate that
+explains why the workload is expected to pass.
 
 ## Test Ownership By Layer
 

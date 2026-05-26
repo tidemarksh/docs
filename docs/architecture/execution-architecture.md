@@ -111,8 +111,8 @@ flowchart TB
 
 The runtime implementation reflects this topology through separate roles for
 kernel-worker state, process ownership, scheduling, thread execution, host I/O,
-and shared-state synchronization. Those roles may move during refactoring, but
-the architectural ownership should remain visible.
+and shared-state synchronization. The important design point is that these
+roles remain explicit instead of being hidden behind one broad execution loop.
 
 ## Thread Workers
 

@@ -38,8 +38,8 @@ created.
 
 The current runtime creates the page cache during runtime initialization, passes
 it into kernel-worker and process creation paths, and exposes snapshot and
-debug operations around it. Those operations should remain architectural
-concepts even if the files that implement them move during refactoring.
+diagnostic operations around it. The important design point is that shared file
+state is a named runtime/kernel substrate, not incidental per-worker data.
 
 The page cache is not an application-visible storage API. It is part of the
 runtime and kernel substrate used to make filesystem and process state visible
@@ -115,7 +115,7 @@ operations can be pipelined safely. The current request set includes:
 - filesystem snapshot load and snapshot export,
 - process registration and lifecycle operations,
 - blocked syscall resume paths,
-- process and page-cache debug operations.
+- process and page-cache diagnostic operations.
 
 ```mermaid
 flowchart LR

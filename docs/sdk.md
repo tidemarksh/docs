@@ -7,8 +7,7 @@ lower-level runtime contract into a smaller surface for creating an environment,
 adding files, running commands, applying file layers, connecting terminals, and
 configuring package or network providers.
 
-The current package name is `@tidemarksh/sdk` at version `0.0.0`. Its current
-workspace dependency points to the local `runtime` package.
+The current package name is `@tidemarksh/sdk` at version `0.0.0`.
 
 ## Design Intent
 
@@ -43,7 +42,7 @@ flowchart TB
   Tidemark["Tidemark class"]
   Files["file helpers"]
   Process["run / spawn / terminal"]
-  Providers["artifact and package providers"]
+  Providers["layer and package providers"]
   Network["network policy helpers"]
   Runtime["Runtime"]
 
@@ -119,9 +118,9 @@ Current test forms include:
 - main SDK API tests,
 - provisioning tests,
 - network helper tests,
-- Node relay tests,
-- Debian live provider tests,
-- Debian materialized provider tests.
+- relay integration tests,
+- live provider tests,
+- materialized provider tests.
 
 ```mermaid
 flowchart TB
@@ -129,15 +128,15 @@ flowchart TB
   API["API tests"]
   Provisioning["provisioning tests"]
   Network["network tests"]
-  NodeRelay["node relay tests"]
-  Debian["Debian provider tests"]
+  Relay["relay tests"]
+  Providers["provider tests"]
   Runtime["runtime contract"]
 
   SDK --> API
   SDK --> Provisioning
   SDK --> Network
-  SDK --> NodeRelay
-  SDK --> Debian
+  SDK --> Relay
+  SDK --> Providers
   API --> Runtime
   Provisioning --> Runtime
 ```

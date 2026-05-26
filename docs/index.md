@@ -30,8 +30,8 @@ flowchart LR
   Kernel --> KernelWasm
 ```
 
-The current SDK package depends on the local runtime package in the workspace.
-The runtime expects kernel WebAssembly bytes at creation time.
+The SDK builds on the runtime API, and the runtime expects kernel WebAssembly
+bytes at creation time.
 
 ## What Tidemark Is
 
@@ -72,8 +72,8 @@ The repositories currently contain implementation code for:
 - Linux userland syscall, filesystem, process, thread, signal, pipe, socket,
   and time-related modules in the kernel.
 - Runtime worker orchestration, process lifecycle handling, file snapshots,
-  SharedArrayBuffer page cache support, network bridge interfaces, and debug
-  helpers.
+  SharedArrayBuffer page cache support, network bridge interfaces, and
+  diagnostic surfaces.
 - SDK helpers for creating a runtime, adding files, running commands, resolving
   package providers, and attaching a simple terminal.
 
