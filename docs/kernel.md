@@ -113,16 +113,3 @@ flowchart TB
 The important test rule is that consumer workloads are not the first proof of
 kernel correctness. They are useful after focused kernel gates have established
 the relevant semantic behavior.
-
-## What Belongs In Kernel Reviews
-
-Kernel review should focus on:
-
-- whether the behavior matches the appropriate specification,
-- whether the guest-visible ABI is stable and explicit,
-- whether unsafe memory access is localized and justified,
-- whether syscall behavior is tested at the semantic boundary,
-- whether runtime coordination concerns are leaking into kernel code.
-
-If a proposed change depends on a command name, package manager, repository URL,
-or product policy, it belongs outside the kernel.

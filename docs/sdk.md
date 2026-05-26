@@ -145,14 +145,3 @@ flowchart TB
 The key testing distinction is that SDK tests should prove provider and API
 behavior. They should not be used to define Linux syscall semantics or runtime
 worker ownership rules.
-
-## What Belongs In SDK Reviews
-
-SDK review should focus on:
-
-- whether the API hides repetitive setup without hiding important failure
-  states,
-- whether provider policy stays above runtime and kernel boundaries,
-- whether package and network configuration is explicit,
-- whether file layer application preserves manifest and checksum intent,
-- whether browser and Node helper code remains optional and isolated.

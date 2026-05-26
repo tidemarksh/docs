@@ -157,14 +157,3 @@ flowchart TB
 The invariant tests should lead. Workload tests are valuable, but they should
 confirm behavior after the relevant runtime ownership or synchronization gate is
 understood.
-
-## What Belongs In Runtime Reviews
-
-Runtime review should focus on:
-
-- worker ownership and lifecycle ordering,
-- whether state synchronization is targeted and explicit,
-- whether blocking/resume behavior preserves kernel-visible state,
-- whether diagnostics remain read-only,
-- whether network and filesystem bridge code stays generic,
-- whether workload-specific policy has leaked below SDK/provider boundaries.
