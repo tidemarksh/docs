@@ -2,74 +2,150 @@
 
 Repository: [tidemarksh/runtime](https://github.com/tidemarksh/runtime)
 
-Tidemark Runtime is a TypeScript runtime for running guest processes in browser
-workers on top of the kernel.
+Tidemark Runtime owns browser-side execution orchestration. It is the layer that
+turns kernel WebAssembly exports into running guest processes by coordinating
+workers, process handles, filesystem snapshots, stdio, network bridges, and
+state synchronization.
 
-The current package metadata identifies the package as `runtime` at version
-`0.0.0`.
+The runtime is written in TypeScript. The current package metadata identifies
+the package as `runtime` at version `0.0.0`.
 
-## Public Runtime Surface
+## Design Intent
 
-The main exported class is `Runtime`.
+The runtime is deliberately not the Linux semantic authority. It should not
+decide what a syscall means. Its job is to preserve the kernel's guest-visible
+state across browser execution boundaries.
 
-Current `Runtime` capabilities include:
+Its responsibilities are:
 
-- `Runtime.create(options)`.
-- Process spawning from executable bytes.
-- Process kill and destruction.
-- Runtime filesystem operations: write, bulk write, symlink, read, readlink,
-  mkdir, stat, readdir, file layer application, and filesystem snapshot loading.
-- Stdout callback registration and stdin writes.
-- HTTP request injection through a runtime network bridge.
-- Debug snapshot and execution statistics helpers.
-- WebAssembly feature and SharedArrayBuffer bridge diagnostics.
+- Instantiate kernel WebAssembly bytes.
+- Create and manage the kernel worker.
+- Create process owner workers and thread workers.
+- Move explicit state snapshots between workers.
+- Coordinate process lifecycle, blocking, resume, fork/vfork/execve, and exit
+  events.
+- Expose generic filesystem operations and file layer application.
+- Bridge stdout, stdin, PTY/pipe modes, and network connections to the host
+  application.
+- Provide diagnostics without making diagnostics define production semantics.
 
-## Current Source Layout
+## Reference Sources
 
-The current `runtime/src` tree includes:
+Runtime design is grounded in platform APIs and the kernel ABI, not in
+workload-specific behavior.
 
-```text
-abi.ts
-bridge.ts
-bridge/
-fs/
-index.ts
-kernel-worker.ts
-kernel-worker/
-messages.ts
-network.ts
-thread-worker.ts
-thread-worker/
-wasm/
-worker.ts
-worker/
+| Area | Reference source |
+|---|---|
+| WebAssembly host integration | [WebAssembly specifications](https://webassembly.org/specs/) and browser WebAssembly APIs |
+| Shared memory substrate | [SharedArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer) and `Atomics` |
+| Worker execution model | [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) |
+| Node-compatible worker execution | [Node.js worker_threads](https://nodejs.org/api/worker_threads.html) |
+| Guest semantics | Kernel WebAssembly ABI and kernel tests |
+
+The runtime can use workload failures to locate orchestration bugs, but generic
+runtime behavior should not branch on package manager names, language runtime
+names, URL shapes, or registry behavior.
+
+## Execution Model
+
+The runtime has three main execution roles:
+
+```mermaid
+flowchart TB
+  API["Runtime API"]
+  KernelWorker["kernel worker<br/>canonical runtime-facing state"]
+  ProcessOwner["process owner worker<br/>lifecycle and scheduling"]
+  ThreadWorker["thread worker<br/>guest execution step loop"]
+  Host["host bridges<br/>stdio, network, file operations"]
+  Kernel["kernel wasm exports"]
+
+  API --> KernelWorker
+  API --> ProcessOwner
+  API --> Host
+  ProcessOwner <--> KernelWorker
+  ProcessOwner <--> ThreadWorker
+  ThreadWorker <--> Kernel
+  KernelWorker <--> Kernel
+  ProcessOwner <--> Host
 ```
 
-Important areas:
+This topology exists because guest programs expect process, fd/OFD, pipe,
+socket, filesystem, and signal state to remain coherent even though the browser
+isolates execution across workers and asynchronous host events.
 
-- `index.ts`: the public `Runtime` and `Process` classes.
-- `kernel-worker.ts` and `kernel-worker/`: kernel worker initialization,
-  filesystem state, process control, lifecycle, and message handling.
-- `thread-worker.ts` and `thread-worker/`: guest execution, blocking behavior,
-  session state, signal handling, sync effects, and memory preparation.
-- `worker.ts` and `worker/`: process creation, lifecycle, fork/exec handoff,
-  scheduler, process I/O, runtime filesystem coordination, worker pool, and
-  network socket close handling.
-- `fs/`: runtime filesystem entry types, ring buffer helpers, and
-  SharedArrayBuffer page cache support.
-- `bridge/`: host compatibility helpers, runtime state, pipe helpers, and scope
-  handling.
-- `wasm/`: WebAssembly environment, feature detection, and stack helpers.
+## State Synchronization Philosophy
 
-## Tests
+Runtime state movement is explicit. The runtime message contracts include
+kernel state, fd snapshots, OFD snapshots, pipe slots, socket state, child-exit
+records, guest memory writes, and blocking/resume hints.
 
-The runtime repository contains workload tests under `tests/workloads` and
-support harnesses under `tests/support`. Current workload names cover browser
-direct startup, dynamic startup, script runtime, package module driver, archive
-orchestrator, toolchain execution, fork/pipe behavior, network streams, and
-large file operations.
+That is intentional. The runtime should make ownership transitions visible
+rather than hide them behind broad global mutation.
 
-## Boundary
+Examples of runtime-owned coordination:
 
-The runtime should expose generic orchestration and host bridge mechanisms. It
-should not need package-manager-specific branches to run a workload.
+- parent/child process lifecycle,
+- selected process ownership,
+- fork and vfork/execve ordering,
+- worker-local wait and resume,
+- fd/OFD and pipe state sync,
+- runtime filesystem snapshot publication,
+- network bridge connection lifecycle.
+
+## Test Strategy
+
+Runtime tests are organized by what they verify, not by helper language or file
+location.
+
+The current test structure has three major families:
+
+- `tests/runtime/`: generic runtime invariants and ownership boundaries.
+- `tests/workloads/`: language, runtime, and toolchain workload checks.
+- `tests/support/`: shared harness code for workload and snapshot tests.
+
+Current runtime invariant tests cover:
+
+- public Runtime and Process API behavior,
+- bridge and runtime-state behavior,
+- filesystem and page-cache synchronization,
+- kernel-worker lifecycle and primitive state,
+- thread-worker execution, blocking, session, signal, and sync-effect behavior,
+- worker lifecycle, scheduler, status handling, stdio, process identity,
+  kernel RPC, fork, execve, and ownership transitions.
+
+Current workload tests cover broad guest behavior across shells, dynamic
+startup, script runtimes, package module drivers, toolchains, large file I/O,
+network streams, and language/runtime-specific startup or toolchain execution.
+
+```mermaid
+flowchart TB
+  RuntimeTests["tests/runtime<br/>generic invariants"]
+  Workloads["tests/workloads<br/>guest workload checks"]
+  Support["tests/support<br/>shared harnesses"]
+  Runtime["runtime implementation"]
+  Kernel["kernel wasm"]
+  Artifacts["external guest payloads"]
+
+  Runtime --> RuntimeTests
+  Runtime --> Workloads
+  Kernel --> RuntimeTests
+  Kernel --> Workloads
+  Artifacts --> Workloads
+  Support --> RuntimeTests
+  Support --> Workloads
+```
+
+The invariant tests should lead. Workload tests are valuable, but they should
+confirm behavior after the relevant runtime ownership or synchronization gate is
+understood.
+
+## What Belongs In Runtime Reviews
+
+Runtime review should focus on:
+
+- worker ownership and lifecycle ordering,
+- whether state synchronization is targeted and explicit,
+- whether blocking/resume behavior preserves kernel-visible state,
+- whether diagnostics remain read-only,
+- whether network and filesystem bridge code stays generic,
+- whether workload-specific policy has leaked below SDK/provider boundaries.
