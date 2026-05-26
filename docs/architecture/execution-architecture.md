@@ -1,7 +1,7 @@
-# Execution Model
+# Execution Architecture
 
 This page describes how the current implementation creates a runtime, starts a
-guest process, and moves execution between the runtime and kernel.
+guest process, and moves execution between workers and kernel WebAssembly.
 
 ## Runtime Creation
 
@@ -29,6 +29,25 @@ sequenceDiagram
 
 The runtime owns the JavaScript/TypeScript worker lifecycle. The kernel owns the
 guest-visible behavior once execution enters kernel exports.
+
+## Kernel ABI And Status Codes
+
+The kernel exports status codes, syscall numbers, constants, and process/thread
+entry points through its WebAssembly ABI. The runtime reads those exports rather
+than maintaining an independent copy of the same contract.
+
+Implementation evidence:
+
+- `kernel/kernel/src/abi.rs` exports status codes such as `STATUS_FS`,
+  `STATUS_FUTEX_WAIT`, `STATUS_PIPE_WAIT`, `STATUS_EPOLL_WAIT`,
+  `STATUS_VFORK_WAIT`, `STATUS_EXECVE_SPAWN`, and `STATUS_CLONE_SPAWN`.
+- `runtime/src/abi.ts` defines `KernelExports`, `StatusCodes`,
+  `KernelRuntimeState`, `readStatusCodes`, and `readKernelRuntimeState`.
+- `runtime/src/messages.ts` carries `KernelRuntimeState` through worker and
+  kernel-worker messages.
+
+This makes the status boundary explicit: kernel execution stops with a status,
+and the runtime decides which browser-side orchestration step is needed next.
 
 ## Process Startup
 
@@ -76,7 +95,7 @@ filesystem state, and host I/O.
 ```mermaid
 flowchart TB
   Runtime["Runtime instance"]
-  KernelWorker["kernel worker<br/>canonical runtime-facing kernel state"]
+  KernelWorker["kernel worker<br/>canonical runtime-facing state"]
   Owner["process owner worker<br/>process lifecycle and scheduling"]
   Pool["worker pool"]
   ThreadA["thread worker"]
@@ -97,12 +116,45 @@ flowchart TB
 
 The runtime source tree reflects this topology:
 
-- `kernel-worker/` handles kernel-worker filesystem state, process control,
-  lifecycle, primitives, and shared-state sync.
-- `worker/` handles process creation, lifecycle, fork variants, scheduler,
-  message handling, kernel-share logic, stdio, and process I/O.
-- `thread-worker/` handles execution, blocking, sessions, signals, and sync
-  effects.
+- `runtime/src/kernel-worker/` handles kernel-worker filesystem state, process
+  control, lifecycle, primitives, and shared-state sync.
+- `runtime/src/worker/` handles process creation, lifecycle, fork variants,
+  scheduler, message handling, kernel-share logic, stdio, and process I/O.
+- `runtime/src/thread-worker.ts` handles guest thread execution, blocking,
+  sessions, signals, and sync effects.
+
+## Thread Workers
+
+Thread workers are the runtime substrate for guest thread execution. A
+thread-worker executes a single guest thread against shared process memory and
+returns explicit status and synchronization data to the process owner. The
+runtime can then coordinate blocking, resume, signals, fork/exec transitions,
+filesystem effects, and process lifecycle without making the kernel depend on
+browser worker APIs.
+
+```mermaid
+flowchart TB
+  ProcessOwner["process owner worker"]
+  SharedMemory["shared process memory<br/>WebAssembly.Memory / SharedArrayBuffer-backed state"]
+  ThreadA["thread worker A<br/>guest thread step loop"]
+  ThreadB["thread worker B<br/>guest thread step loop"]
+  KernelExports["kernel wasm exports"]
+  Status["status + sync effects<br/>fd/OFD, pipe, socket, memory writes"]
+
+  ProcessOwner --> ThreadA
+  ProcessOwner --> ThreadB
+  ThreadA <--> SharedMemory
+  ThreadB <--> SharedMemory
+  ThreadA --> KernelExports
+  ThreadB --> KernelExports
+  KernelExports --> Status
+  Status --> ProcessOwner
+```
+
+This design supports workloads that expect a threaded Linux userland substrate:
+language runtimes, compiler drivers, build tools, thread pools, futex waits,
+signal interruption, and child process orchestration. Those workloads exercise
+the substrate; they are not special cases in the runtime architecture.
 
 ## Step And Status Loop
 
@@ -132,20 +184,30 @@ exit records, or tear down a process tree.
 
 ## Fork, Vfork, And Execve
 
-The current runtime has dedicated directories and modules for plain fork,
-vfork/execve handling, execve handoff, kernel-share state, child process
-records, process lifecycle synchronization, and scheduler state.
+Fork-style operations are not only memory copies. They also involve fd/OFD
+ownership, pipe state, process identity, child-exit records, cwd and executable
+state, and worker readiness ordering.
+
+The current implementation exposes this as an explicit handoff:
+
+- kernel exports describe spawn kind and pending handoff state,
+- runtime worker modules build or rehydrate child process owners,
+- kernel-worker messages resume vfork parents and synchronize shared state,
+- tests cover vfork/execve success, failure, parent restoration, and fd/OFD
+  isolation cases.
 
 ```mermaid
 flowchart LR
   Parent["parent process owner"]
-  ForkModule["worker/fork/*"]
-  KernelShare["worker/kernel-share/*"]
+  Status["STATUS_VFORK_WAIT<br/>STATUS_EXECVE_SPAWN<br/>STATUS_CLONE_SPAWN"]
+  ForkModule["runtime/src/worker/fork/*"]
+  KernelShare["runtime/src/worker/kernel-share/*"]
   KernelWorker["kernel worker lifecycle state"]
   Child["child process owner"]
   Thread["thread worker init"]
 
-  Parent --> ForkModule
+  Parent --> Status
+  Status --> ForkModule
   ForkModule --> KernelShare
   KernelShare --> KernelWorker
   ForkModule --> Child
@@ -153,18 +215,11 @@ flowchart LR
   Child --> KernelWorker
 ```
 
-This split exists because fork-style operations are not only memory copies.
-They also involve fd/OFD ownership, pipe state, process identity, child-exit
-records, cwd and executable state, and worker readiness ordering.
+Implementation evidence:
 
-## Host I/O And Network
-
-The runtime exposes generic bridge points:
-
-- stdout callbacks and stdin writes,
-- PTY or pipe stdio modes,
-- `injectHttp` for HTTP request injection through a network bridge,
-- network bridge types exported to SDK users.
-
-Network policy is not hard-coded into the kernel. SDK/application code can
-provide policy or proxy behavior above the generic runtime bridge.
+- `runtime/src/messages.ts` includes `resume-vfork-parent`,
+  `resume-vfork-execve-parent`, and related completion messages.
+- `runtime/src/worker/fork/` and `runtime/src/worker/execve-handoff.ts` handle
+  fork and execve handoff paths.
+- `runtime/tests/runtime/worker/orchestrator.test.ts` contains vfork/execve
+  handoff, failure, fd, pipe, and parent-resume cases.

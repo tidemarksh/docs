@@ -33,9 +33,13 @@ nav:
   - Overview: index.md
   - Architecture:
       - Overview: architecture.md
-      - Execution Model: architecture/execution-model.md
-      - State And Filesystem: architecture/state-and-filesystem.md
-      - Boundaries: architecture/boundaries.md
+      - System Model: architecture/system-model.md
+      - Execution Architecture: architecture/execution-architecture.md
+      - State Model: architecture/state-model.md
+      - Compatibility Model: architecture/compatibility-model.md
+      - Host Integration: architecture/host-integration.md
+      - Layer Boundaries: architecture/layer-boundaries.md
+      - Testing Strategy: architecture/testing-strategy.md
   - Kernel: kernel.md
   - Runtime: runtime.md
   - SDK: sdk.md

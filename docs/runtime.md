@@ -92,6 +92,25 @@ Examples of runtime-owned coordination:
 - runtime filesystem snapshot publication,
 - network bridge connection lifecycle.
 
+## Threaded Guest Workloads
+
+Thread workers are not only an implementation detail for parallel JavaScript
+execution. They are the runtime mechanism that maps guest thread execution onto
+browser or Node worker infrastructure while keeping shared process memory and
+kernel-visible state coherent.
+
+Each thread worker executes a guest thread step loop against the process memory
+prepared by the process owner. When execution stops, the thread worker returns
+structured state: status, registers, syscall details, fd/OFD snapshots, pipe
+slots, socket state, memory writes, child-exit records, and sync effects. The
+process owner uses that state to continue, block, resume, synchronize with the
+kernel worker, or publish lifecycle changes.
+
+This is the substrate needed by threaded Linux userland workloads such as
+language runtimes, compiler drivers, build tools, thread pools, futex waits,
+and signal-aware runtimes. Those workloads exercise the same generic runtime
+design; the runtime should not contain language-specific threading logic.
+
 ## Test Strategy
 
 Runtime tests are organized by what they verify, not by helper language or file
@@ -124,13 +143,13 @@ flowchart TB
   Support["tests/support<br/>shared harnesses"]
   Runtime["runtime implementation"]
   Kernel["kernel wasm"]
-  Artifacts["external guest payloads"]
+  GuestFiles["external guest files"]
 
   Runtime --> RuntimeTests
   Runtime --> Workloads
   Kernel --> RuntimeTests
   Kernel --> Workloads
-  Artifacts --> Workloads
+  GuestFiles --> Workloads
   Support --> RuntimeTests
   Support --> Workloads
 ```
