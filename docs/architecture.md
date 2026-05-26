@@ -23,7 +23,7 @@ flowchart TB
   State["State Model<br/>memory, filesystem, fd/OFD, pipes, sockets"]
   Compatibility["Compatibility Model<br/>RISC-V, ELF, Linux, POSIX contracts"]
   Host["Host Integration<br/>browser/Node workers, stdio, network"]
-  Boundaries["Layer Boundaries<br/>what belongs in kernel/runtime/sdk"]
+  Boundaries["Layer Boundaries<br/>what belongs in kernel, runtime, and SDK"]
   Tests["Testing Strategy<br/>layer-specific proof and workload gates"]
 
   System --> Execution
@@ -44,7 +44,7 @@ flowchart TB
   policy.
 - [Execution Architecture](architecture/execution-architecture.md): runtime
   creation, worker topology, kernel exports, status-driven execution,
-  thread-worker scheduling, and fork/vfork/execve handoff.
+  thread-worker scheduling, and fork/vfork/execve handoff transitions.
 - [State Model](architecture/state-model.md): guest memory, SharedArrayBuffer
   use, page-cache and filesystem snapshots, fd/OFD state, pipe state, socket
   state, and kernel-worker RPC.

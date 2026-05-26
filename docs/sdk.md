@@ -152,7 +152,7 @@ SDK review should focus on:
 
 - whether the API hides repetitive setup without hiding important failure
   states,
-- whether provider policy stays above runtime/kernel boundaries,
+- whether provider policy stays above runtime and kernel boundaries,
 - whether package and network configuration is explicit,
 - whether file layer application preserves manifest and checksum intent,
 - whether browser and Node helper code remains optional and isolated.

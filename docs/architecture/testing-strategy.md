@@ -26,13 +26,9 @@ flowchart TB
 
 Kernel tests should establish guest-visible semantics.
 
-Current forms include:
-
-- `kernel/tests/tests/riscv/` for RISC-V execution coverage.
-- `kernel/tests/tests/syscall/` for syscall families.
-- `kernel/tests/fixtures/ltp/` for LTP classification.
-- kernel ABI/export tests for the WebAssembly boundary.
-- Wasmtime-based execution support for kernel WebAssembly tests.
+Current forms include RISC-V execution coverage, syscall-family coverage, LTP
+classification, ABI/export tests for the WebAssembly boundary, and
+Wasmtime-based execution support for kernel WebAssembly tests.
 
 Kernel tests are the right place to prove instruction behavior, ELF behavior,
 syscall semantics, fd rules, memory mapping, signal behavior, process rules,
@@ -42,11 +38,8 @@ and socket/pipe semantics.
 
 Runtime tests should establish ownership and orchestration behavior.
 
-Current forms include:
-
-- `runtime/tests/runtime/` for generic runtime invariants.
-- `runtime/tests/workloads/` for guest workload checks.
-- `runtime/tests/support/` for shared harnesses and snapshot helpers.
+Current forms include generic runtime invariant tests, guest workload checks,
+and shared harnesses for workload and snapshot verification.
 
 Runtime invariant tests cover public API behavior, bridge state, filesystem and
 page-cache synchronization, kernel-worker lifecycle, thread-worker execution,
@@ -61,13 +54,9 @@ branches in kernel or generic runtime code.
 
 SDK tests should establish API, provider, and policy behavior.
 
-Current forms include:
-
-- `sdk/tests/index.test.ts` for main API behavior.
-- `sdk/tests/provisioning.test.ts` for resolver, cache, and provider behavior.
-- `sdk/tests/network.test.ts` for policy fetch, HTTP proxy, and tunnel helpers.
-- `sdk/tests/node-relay.test.ts` for Node relay support.
-- provider integration tests that use runtime contracts when needed.
+Current forms include main API behavior, resolver/cache/provider behavior,
+policy fetch behavior, HTTP proxy behavior, tunnel helpers, Node relay support,
+and provider integration tests that use runtime contracts when needed.
 
 SDK tests can reference package ecosystems or provider metadata because that is
 the SDK's policy layer. They should not redefine kernel syscall semantics or

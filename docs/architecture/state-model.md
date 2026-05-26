@@ -36,19 +36,13 @@ The runtime allocates a SharedArrayBuffer-backed page cache during
 kernel environment receives that page cache when WebAssembly instances are
 created.
 
-Implementation evidence:
-
-- `runtime/src/index.ts` allocates `sabPageCache` with `new
-  SharedArrayBuffer(this.ramSize)` and sends it to kernel initialization and
-  process creation.
-- `runtime/src/kernel-worker/process-control.ts` passes the page cache into
-  `createKernelEnv`.
-- `runtime/src/kernel-worker/` exposes page-cache debug and rebuild paths.
-- `runtime/src/messages.ts` includes `sabPageCache`, `snapshot-fs`,
-  `load-fs-snapshot`, and page-cache debug messages.
+The current runtime creates the page cache during runtime initialization, passes
+it into kernel-worker and process creation paths, and exposes snapshot and
+debug operations around it. Those operations should remain architectural
+concepts even if the files that implement them move during refactoring.
 
 The page cache is not an application-visible storage API. It is part of the
-runtime/kernel substrate used to make filesystem and process state visible
+runtime and kernel substrate used to make filesystem and process state visible
 across workers.
 
 ## Filesystem Layers And Snapshots
@@ -127,7 +121,7 @@ operations can be pipelined safely. The current request set includes:
 flowchart LR
   Runtime["Runtime API call"]
   Request["KernelWorkerRequest<br/>requestId + typed payload"]
-  Handler["kernel-worker/message-handler.ts"]
+  Handler["kernel-worker handler"]
   Action["fs, lifecycle, sync, debug operation"]
   Response["KernelWorkerOutbound<br/>requestId + typed result"]
 
@@ -189,16 +183,11 @@ flowchart TB
   KernelWorker --> Kernel
 ```
 
-Implementation evidence:
-
-- `kernel/kernel/src/abi.rs` exposes fd and OFD accessors such as
-  `process_fd_ofd_id`, fd flags, and kernel OFD entry points.
-- `runtime/src/thread-worker.ts` snapshots fd/OFD, pipe, socket, memory, and
-  sync-effect data when execution stops.
-- `runtime/src/worker/message-handler/status.ts` applies fd/OFD, pipe, socket,
-  child-exit, and sync-effect data from thread-worker status messages.
-- `runtime/src/worker/kernel-share/` contains shared-state synchronization
-  helpers for fork and process transitions.
+The current implementation exposes fd and OFD state through the kernel ABI,
+collects fd/OFD, pipe, socket, memory, and sync-effect state when execution
+stops, and applies that state through process-owner and kernel-worker
+synchronization. Tests should cover the observable result of those transfers,
+not the filenames that happen to implement them.
 
 This structure is what lets thread execution, process ownership, and kernel
 worker state converge after a blocking syscall, fork-style transition, network

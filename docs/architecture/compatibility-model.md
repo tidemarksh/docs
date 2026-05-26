@@ -52,18 +52,10 @@ the fix still needs to reconcile with the relevant source.
 
 ## Compatibility Evidence
 
-The current repositories reflect this split:
-
-- `kernel/tests/tests/riscv/` and related riscv-test integration verify
-  instruction behavior.
-- `kernel/tests/tests/syscall/` verifies syscall families and kernel-visible
-  process/filesystem behavior.
-- `kernel/tests/fixtures/ltp/` classifies LTP coverage as conforming,
-  equivalent, divergent, or unsupported.
-- `runtime/tests/runtime/` verifies worker ownership, state sync, blocking,
-  scheduling, filesystem snapshots, fork/execve, and bridge behavior.
-- `runtime/tests/workloads/` runs consumer-style guest workloads after lower
-  layers have a relevant ownership or compatibility gate.
+The current repositories reflect this split through separate gates for RISC-V
+instruction behavior, syscall families, LTP classification, runtime ownership,
+state synchronization, worker scheduling, filesystem snapshots, fork/execve,
+host bridges, and consumer-style workload composition.
 
 The purpose is to avoid treating a consumer command as the first definition of
 correct behavior. The consumer command should confirm that the lower-level

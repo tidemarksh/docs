@@ -118,9 +118,9 @@ location.
 
 The current test structure has three major families:
 
-- `tests/runtime/`: generic runtime invariants and ownership boundaries.
-- `tests/workloads/`: language, runtime, and toolchain workload checks.
-- `tests/support/`: shared harness code for workload and snapshot tests.
+- generic runtime invariants and ownership boundaries,
+- language, runtime, and toolchain workload checks,
+- shared harness code for workload and snapshot tests.
 
 Current runtime invariant tests cover:
 
@@ -138,9 +138,9 @@ network streams, and language/runtime-specific startup or toolchain execution.
 
 ```mermaid
 flowchart TB
-  RuntimeTests["tests/runtime<br/>generic invariants"]
-  Workloads["tests/workloads<br/>guest workload checks"]
-  Support["tests/support<br/>shared harnesses"]
+  RuntimeTests["generic invariants"]
+  Workloads["guest workload checks"]
+  Support["shared harnesses"]
   Runtime["runtime implementation"]
   Kernel["kernel wasm"]
   GuestFiles["external guest files"]

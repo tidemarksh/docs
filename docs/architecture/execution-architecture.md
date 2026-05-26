@@ -36,15 +36,10 @@ The kernel exports status codes, syscall numbers, constants, and process/thread
 entry points through its WebAssembly ABI. The runtime reads those exports rather
 than maintaining an independent copy of the same contract.
 
-Implementation evidence:
-
-- `kernel/kernel/src/abi.rs` exports status codes such as `STATUS_FS`,
-  `STATUS_FUTEX_WAIT`, `STATUS_PIPE_WAIT`, `STATUS_EPOLL_WAIT`,
-  `STATUS_VFORK_WAIT`, `STATUS_EXECVE_SPAWN`, and `STATUS_CLONE_SPAWN`.
-- `runtime/src/abi.ts` defines `KernelExports`, `StatusCodes`,
-  `KernelRuntimeState`, `readStatusCodes`, and `readKernelRuntimeState`.
-- `runtime/src/messages.ts` carries `KernelRuntimeState` through worker and
-  kernel-worker messages.
+The current ABI includes status categories for filesystem work, futex waits,
+pipe waits, epoll waits, vfork waits, exec-style process creation, clone-style
+thread or process creation, sleep, sockets, and JIT readiness. Runtime message
+contracts carry kernel runtime state alongside those statuses.
 
 This makes the status boundary explicit: kernel execution stops with a status,
 and the runtime decides which browser-side orchestration step is needed next.
@@ -114,14 +109,10 @@ flowchart TB
   Owner <--> Host
 ```
 
-The runtime source tree reflects this topology:
-
-- `runtime/src/kernel-worker/` handles kernel-worker filesystem state, process
-  control, lifecycle, primitives, and shared-state sync.
-- `runtime/src/worker/` handles process creation, lifecycle, fork variants,
-  scheduler, message handling, kernel-share logic, stdio, and process I/O.
-- `runtime/src/thread-worker.ts` handles guest thread execution, blocking,
-  sessions, signals, and sync effects.
+The runtime implementation reflects this topology through separate roles for
+kernel-worker state, process ownership, scheduling, thread execution, host I/O,
+and shared-state synchronization. Those roles may move during refactoring, but
+the architectural ownership should remain visible.
 
 ## Thread Workers
 
@@ -188,7 +179,8 @@ Fork-style operations are not only memory copies. They also involve fd/OFD
 ownership, pipe state, process identity, child-exit records, cwd and executable
 state, and worker readiness ordering.
 
-The current implementation exposes this as an explicit handoff:
+The current implementation exposes this as an explicit process handoff
+protocol:
 
 - kernel exports describe spawn kind and pending handoff state,
 - runtime worker modules build or rehydrate child process owners,
@@ -200,8 +192,8 @@ The current implementation exposes this as an explicit handoff:
 flowchart LR
   Parent["parent process owner"]
   Status["STATUS_VFORK_WAIT<br/>STATUS_EXECVE_SPAWN<br/>STATUS_CLONE_SPAWN"]
-  ForkModule["runtime/src/worker/fork/*"]
-  KernelShare["runtime/src/worker/kernel-share/*"]
+  ForkModule["fork transition logic"]
+  KernelShare["shared kernel-object sync"]
   KernelWorker["kernel worker lifecycle state"]
   Child["child process owner"]
   Thread["thread worker init"]
@@ -215,11 +207,7 @@ flowchart LR
   Child --> KernelWorker
 ```
 
-Implementation evidence:
-
-- `runtime/src/messages.ts` includes `resume-vfork-parent`,
-  `resume-vfork-execve-parent`, and related completion messages.
-- `runtime/src/worker/fork/` and `runtime/src/worker/execve-handoff.ts` handle
-  fork and execve handoff paths.
-- `runtime/tests/runtime/worker/orchestrator.test.ts` contains vfork/execve
-  handoff, failure, fd, pipe, and parent-resume cases.
+The handoff protocol has to cover parent suspension and resume, child
+creation, fd/OFD visibility, pipe visibility, child-exit records, and failure
+rollback. Tests should cover successful transitions, failure restoration,
+descriptor isolation, pipe behavior, and parent-resume ordering.

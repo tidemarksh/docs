@@ -45,15 +45,11 @@ The runtime exposes a generic network bridge contract. The SDK can build policy
 and proxy helpers on top of that contract with browser `fetch`, WebSocket
 tunnels, or application-provided connectors.
 
-Implementation evidence:
-
-- `runtime/src/network.ts` defines the runtime network bridge interfaces.
-- `runtime/src/index.ts` exports `injectHttp` and network bridge types.
-- `sdk/src/network.ts` implements `createPolicyFetch`,
-  `createHttpProxyNetworkBridge`, `createProxyEnvironment`, and
-  `createWebSocketTunnelConnector`.
-- `sdk/tests/network.test.ts` verifies generic policy, proxy, and tunnel
-  behavior without package-manager-specific branching.
+The current public surface includes runtime network bridge types, HTTP
+injection support, SDK policy fetch helpers, HTTP proxy bridge helpers, proxy
+environment helpers, and WebSocket tunnel connector helpers. Tests should
+verify generic policy, proxy, and tunnel behavior without package-manager-
+specific branching.
 
 ```mermaid
 flowchart TB
