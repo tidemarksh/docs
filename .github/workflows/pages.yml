@@ -26,6 +26,8 @@ jobs:
           python-version: "3.x"
 
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Install dependencies
         run: pip install -r requirements.txt
