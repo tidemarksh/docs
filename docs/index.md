@@ -2,12 +2,6 @@
 
 Tidemark is a browser-hosted RISC-V Linux userland environment.
 
-The public implementation is split across three primary repositories:
-
-- [kernel](https://github.com/tidemarksh/kernel): a Rust/WebAssembly RISC-V Linux userland kernel.
-- [runtime](https://github.com/tidemarksh/runtime): a TypeScript runtime that runs guest processes in workers and connects them to browser host services.
-- [sdk](https://github.com/tidemarksh/sdk): a higher-level TypeScript API built on the runtime.
-
 This site explains repository boundaries, current implementation structure, and
 the contracts between layers.
 
@@ -44,6 +38,13 @@ The runtime expects kernel WebAssembly bytes at creation time.
 Tidemark is not a full virtual machine monitor and it is not a browser operating
 system. The current implementation focuses on running RISC-V Linux userland
 programs inside WebAssembly and browser worker infrastructure.
+
+It can be used as an application-embedded guest execution environment for
+running Linux userland binaries, command-line tools, language runtimes, build
+steps, package-backed file layers, and terminal-like workflows inside a browser
+or compatible worker host. The value is not only CPU emulation; it is the
+combination of guest execution, filesystem state, process orchestration, stdio,
+network bridge hooks, and SDK-level provisioning.
 
 At a high level, Tidemark separates guest semantics from browser orchestration
 and product-level provisioning:
