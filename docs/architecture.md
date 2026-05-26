@@ -1,85 +1,153 @@
 # Architecture
 
-Tidemark uses a layered architecture. Each repository owns a different part of
-the system rather than mirroring the same directory tree across languages.
+This page is the entry point for Tidemark's architecture. The detailed pages
+under this section describe the execution model, state movement, filesystem
+layering, repository boundaries, and artifact distribution.
 
-```text
-+-----------------------------+
-| user app, integration, demo |
-+-------------+---------------+
-              |
-              v
-+-----------------------------+
-| sdk                         |
-| high-level API, artifacts,  |
-| package providers, network  |
-| policy helpers              |
-+-------------+---------------+
-              |
-              v
-+-----------------------------+
-| runtime                     |
-| workers, process lifecycle, |
-| FS snapshots, host bridges  |
-+-------------+---------------+
-              |
-              v
-+-----------------------------+
-| kernel                      |
-| RISC-V execution, ELF,      |
-| memory, FS, syscalls        |
-+-------------+---------------+
-              |
-              v
-+-----------------------------+
-| RISC-V Linux userland code  |
-+-----------------------------+
+Tidemark is a browser-hosted RISC-V Linux userland environment. The key
+architectural choice is that guest-visible Linux and RISC-V behavior lives in a
+Rust kernel compiled to WebAssembly, while browser execution machinery lives in
+a TypeScript runtime.
+
+## System Shape
+
+```mermaid
+flowchart TB
+  subgraph Host["host application layer"]
+    App["application"]
+    Terminal["terminal or product UI"]
+  end
+
+  subgraph SDK["sdk repository"]
+    Tidemark["Tidemark class"]
+    Providers["artifact resolvers<br/>package providers<br/>network policy helpers"]
+    TerminalAPI["terminal helper"]
+  end
+
+  subgraph Runtime["runtime repository"]
+    RuntimeAPI["Runtime class"]
+    KernelWorker["kernel worker"]
+    ProcessOwner["process owner worker"]
+    ThreadWorkers["thread workers"]
+    HostBridge["stdio, network, filesystem bridge"]
+  end
+
+  subgraph Kernel["kernel repository"]
+    Exports["wasm exports"]
+    CPU["RISC-V CPU execution"]
+    ELF["ELF loader"]
+    GuestMem["guest memory"]
+    Syscalls["Linux userland syscalls"]
+    KernelFS["memfs, fd table, rings"]
+    JIT["JIT cache and wasm generation"]
+  end
+
+  subgraph Artifacts["artifacts repository"]
+    Recipes["recipes"]
+    Releases["GitHub Release assets"]
+    Metadata["manifest, checksums, license material"]
+  end
+
+  App --> Tidemark
+  App --> RuntimeAPI
+  Terminal --> TerminalAPI
+  Tidemark --> RuntimeAPI
+  Tidemark --> Providers
+  Providers --> Releases
+  Recipes --> Releases
+  Releases --> Metadata
+  RuntimeAPI --> KernelWorker
+  RuntimeAPI --> ProcessOwner
+  ProcessOwner --> ThreadWorkers
+  RuntimeAPI --> HostBridge
+  KernelWorker --> Exports
+  ThreadWorkers --> Exports
+  Exports --> CPU
+  Exports --> ELF
+  Exports --> GuestMem
+  Exports --> Syscalls
+  Syscalls --> KernelFS
+  CPU --> JIT
 ```
 
-## Layer Responsibilities
+There are two important consequences:
 
-The kernel owns guest-visible Linux and RISC-V behavior. Its Rust modules cover
-CPU execution, ELF loading, guest memory access, filesystem state, network ring
-buffers, JIT support, tracepoints, and syscall families.
+- Kernel behavior is about guest-visible execution and Linux compatibility.
+- Runtime behavior is about worker orchestration, state movement, and browser
+  host integration.
 
-The runtime owns browser and worker orchestration. It creates a kernel worker,
-spawns guest processes, coordinates thread workers, manages runtime filesystem
-snapshots, bridges stdio, and exposes network bridge interfaces.
+The SDK and artifacts repositories sit above those layers. They make the system
+usable by applications without pushing package or distribution policy into the
+kernel or generic runtime.
 
-The SDK owns product-facing convenience APIs. It resolves executable paths,
-loads files into the guest filesystem, runs commands, applies artifact layers,
-uses package providers, and exposes browser and Node-oriented integration
-helpers.
+## Architecture Pages
 
-The artifacts repository owns payload build recipes and release contracts. It
-does not define runtime behavior. Consumers pin exact release assets and
-checksums.
+- [Execution Model](architecture/execution-model.md): runtime creation,
+  process startup, worker topology, step/status flow, fork/vfork/execve, and
+  host I/O.
+- [State And Filesystem](architecture/state-and-filesystem.md): state owners,
+  filesystem layers, kernel-worker RPC, snapshots, runtime reads, and artifact
+  release state.
+- [Boundaries](architecture/boundaries.md): ownership matrix and practical
+  repository rules.
 
-## Process Execution Flow
+## Repository Dependency Direction
 
-The current high-level execution flow is:
+```mermaid
+flowchart LR
+  SDK["@tidemarksh/sdk"]
+  Runtime["runtime package"]
+  KernelWasm["kernel WebAssembly bytes"]
+  Kernel["tidemarksh/kernel"]
+  Artifacts["tidemarksh/artifacts"]
+  Docs["tidemarksh/docs"]
+  App["application"]
 
-1. A host application creates a `Runtime` or `Tidemark` instance with kernel
-   WebAssembly bytes.
-2. The runtime initializes a kernel worker and a SharedArrayBuffer-backed page
-   cache.
-3. The SDK or application writes files, applies file layers, or loads an
-   executable from the runtime filesystem.
-4. The runtime creates a guest process and passes the executable bytes, argv,
-   environment, cwd, stdio mode, and memory limits to worker orchestration code.
-5. Guest execution runs through the kernel's RISC-V and syscall implementation.
-6. The runtime forwards stdout, stdin, exit, filesystem, and network bridge
-   events to the host application.
+  App --> SDK
+  App --> Runtime
+  SDK --> Runtime
+  Runtime --> KernelWasm
+  Kernel --> KernelWasm
+  SDK -. resolves and applies .-> Artifacts
+  Docs -. documents .-> SDK
+  Docs -. documents .-> Runtime
+  Docs -. documents .-> Kernel
+  Docs -. documents .-> Artifacts
+```
 
-## Boundary Rule
+The current SDK package depends on the local runtime package in the workspace.
+The runtime does not import the kernel Rust crate directly; it receives kernel
+WebAssembly bytes through `Runtime.create`.
 
-Lower layers should stay generic:
+## Control Planes
 
-- Kernel code should not know about package managers, registries, CDN paths, or
-  product policy.
-- Runtime code should not encode package-manager-specific behavior.
-- SDK and provider code may know about artifact resolution, package profiles,
-  network policy, and host integration choices.
+| Plane | Current owner | Examples |
+|---|---|---|
+| Guest execution semantics | Kernel | RISC-V decode/dispatch, ELF, syscall behavior, guest memory access. |
+| Kernel state exports | Kernel | WebAssembly exports for kernel, thread, and memfs entry points. |
+| Worker orchestration | Runtime | Kernel worker, process owner workers, thread workers, worker pool. |
+| Runtime state movement | Runtime | `KernelRuntimeState`, fd/OFD snapshots, pipe slots, socket state snapshots, child-exit records. |
+| Filesystem layering | Runtime and SDK | Runtime file layers and snapshots; SDK artifact layer installation. |
+| Artifact distribution | Artifacts | Release payloads, manifests, checksums, build info, license bundles. |
+| Product policy | SDK or application | Package provider choice, network policy, artifact origins, UI behavior. |
 
-This keeps Linux/RISC-V compatibility concerns separate from browser
-orchestration and product-level provisioning.
+## Why This Is Not A Simple Emulator Package
+
+A small emulator package can often expose one function like `run(binary)`. The
+current Tidemark implementation has more moving parts because guest programs can
+interact with filesystem state, process state, pipes, sockets, signals, child
+processes, dynamic startup files, and host networking.
+
+The runtime therefore has to preserve ordering across:
+
+- kernel-worker RPCs,
+- process owner state,
+- thread-worker status messages,
+- fd/OFD and pipe snapshots,
+- fork/vfork/exec transitions,
+- filesystem snapshots and page-cache state,
+- stdio and network bridge events.
+
+Those are not UI concerns. They are the browser-side substrate needed to let the
+kernel's guest-visible behavior continue across workers and asynchronous host
+events.

@@ -2,16 +2,42 @@
 
 Tidemark is a browser-hosted RISC-V Linux userland environment.
 
-The public implementation is split across four repositories:
+The public implementation is split across three primary repositories:
 
 - [kernel](https://github.com/tidemarksh/kernel): a Rust/WebAssembly RISC-V Linux userland kernel.
 - [runtime](https://github.com/tidemarksh/runtime): a TypeScript runtime that runs guest processes in workers and connects them to browser host services.
 - [sdk](https://github.com/tidemarksh/sdk): a higher-level TypeScript API built on the runtime.
-- [artifacts](https://github.com/tidemarksh/artifacts): build recipes and GitHub Release assets for redistributable guest payloads.
 
-The demo application is intentionally separate from this documentation site.
 This site explains repository boundaries, current implementation structure, and
 the contracts between layers.
+
+## Repositories
+
+| Repository | Primary language | Current role |
+|---|---|---|
+| [kernel](https://github.com/tidemarksh/kernel) | Rust | RISC-V Linux userland kernel compiled for WebAssembly targets. |
+| [runtime](https://github.com/tidemarksh/runtime) | TypeScript | Browser worker runtime that runs guest processes on top of the kernel. |
+| [sdk](https://github.com/tidemarksh/sdk) | TypeScript | Higher-level API for applications using the runtime. |
+
+The dependency direction is intentionally one-way:
+
+```mermaid
+flowchart LR
+  App["application"]
+  SDK["@tidemarksh/sdk"]
+  Runtime["runtime package"]
+  KernelWasm["kernel WebAssembly bytes"]
+  Kernel["tidemarksh/kernel"]
+
+  App --> SDK
+  App --> Runtime
+  SDK --> Runtime
+  Runtime --> KernelWasm
+  Kernel --> KernelWasm
+```
+
+The current SDK package depends on the local runtime package in the workspace.
+The runtime expects kernel WebAssembly bytes at creation time.
 
 ## What Tidemark Is
 
@@ -19,22 +45,22 @@ Tidemark is not a full virtual machine monitor and it is not a browser operating
 system. The current implementation focuses on running RISC-V Linux userland
 programs inside WebAssembly and browser worker infrastructure.
 
-At a high level:
+At a high level, Tidemark separates guest semantics from browser orchestration
+and product-level provisioning:
 
-```text
-application or demo
-        |
-        v
-sdk -------------- artifact and package providers
-        |
-        v
-runtime ---------- browser workers, process orchestration, host bridges
-        |
-        v
-kernel ----------- RISC-V CPU, ELF loading, memory, filesystem, syscalls
-        |
-        v
-guest program ---- RISC-V Linux userland binary
+```mermaid
+flowchart TB
+  App["application"]
+  SDK["sdk<br/>high-level API and package providers"]
+  Runtime["runtime<br/>workers, process lifecycle, host bridges"]
+  Kernel["kernel<br/>RISC-V execution, ELF, memory, syscalls"]
+  Guest["RISC-V Linux userland program"]
+
+  App --> SDK
+  App --> Runtime
+  SDK --> Runtime
+  Runtime --> Kernel
+  Kernel --> Guest
 ```
 
 ## Current Scope
@@ -47,13 +73,11 @@ The repositories currently contain implementation code for:
 - Runtime worker orchestration, process lifecycle handling, file snapshots,
   SharedArrayBuffer page cache support, network bridge interfaces, and debug
   helpers.
-- SDK helpers for creating a runtime, adding files, running commands, applying
-  artifact layers, resolving package providers, and attaching a simple terminal.
-- Artifact recipes and release automation for guest runtimes, toolchains, and
-  support payloads.
+- SDK helpers for creating a runtime, adding files, running commands, resolving
+  package providers, and attaching a simple terminal.
+
+For a deeper description, start with [Architecture](architecture.md).
 
 ## License
 
-The public source repositories are licensed under Apache-2.0 unless a repository
-states otherwise. Artifact payloads keep their upstream licenses and are
-distributed with release metadata and license materials.
+The kernel, runtime, and SDK repositories are licensed under Apache-2.0.

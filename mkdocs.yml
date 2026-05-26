@@ -7,6 +7,8 @@ repo_name: tidemarksh/docs
 theme:
   name: material
   features:
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.indexes
     - navigation.top
@@ -21,15 +23,19 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 nav:
   - Overview: index.md
-  - Architecture: architecture.md
-  - Repositories: repositories.md
-  - Design Principles: design-principles.md
+  - Architecture:
+      - Overview: architecture.md
+      - Execution Model: architecture/execution-model.md
+      - State And Filesystem: architecture/state-and-filesystem.md
+      - Boundaries: architecture/boundaries.md
   - Kernel: kernel.md
   - Runtime: runtime.md
   - SDK: sdk.md
-  - Artifacts: artifacts.md
-  - Status: status.md
